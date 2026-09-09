@@ -1,4 +1,5 @@
 import os
+import io
 import sqlite3
 import json
 import math
@@ -11,7 +12,7 @@ import pandas as pd
 import numpy as np
 import requests
 
-VERSION = "5.5.2"
+VERSION = "5.5.3 World Leagues"
 
 # ===== data.py =====
 
@@ -27,7 +28,53 @@ def clean(df):
 # ===== odds.py =====
 
 BASE='https://api.the-odds-api.com/v4'
-SPORTS={'Premier League':'soccer_epl','La Liga':'soccer_spain_la_liga','Bundesliga':'soccer_germany_bundesliga','Serie A':'soccer_italy_serie_a','Ligue 1':'soccer_france_ligue_one','Eredivisie':'soccer_netherlands_eredivisie','Ekstraklasa':'soccer_poland_ekstraklasa'}
+SPORTS={
+    # Europe — Tier 1 + Tier 2 where The Odds API currently provides them
+    'England — Premier League':'soccer_epl',
+    'England — Championship':'soccer_efl_champ',
+    'France — Ligue 1':'soccer_france_ligue_one',
+    'France — Ligue 2':'soccer_france_ligue_two',
+    'Germany — Bundesliga':'soccer_germany_bundesliga',
+    'Germany — 2. Bundesliga':'soccer_germany_bundesliga2',
+    'Italy — Serie A':'soccer_italy_serie_a',
+    'Italy — Serie B':'soccer_italy_serie_b',
+    'Spain — La Liga':'soccer_spain_la_liga',
+    'Spain — La Liga 2':'soccer_spain_segunda_division',
+    'Netherlands — Eredivisie':'soccer_netherlands_eredivisie',
+    'Portugal — Primeira Liga':'soccer_portugal_primeira_liga',
+    'Belgium — First Division':'soccer_belgium_first_div',
+    'Scotland — Premiership':'soccer_spl',
+    'Turkey — Super League':'soccer_turkey_super_league',
+    'Greece — Super League':'soccer_greece_super_league',
+    'Austria — Bundesliga':'soccer_austria_bundesliga',
+    'Switzerland — Super League':'soccer_switzerland_superleague',
+    'Denmark — Superliga':'soccer_denmark_superliga',
+    'Norway — Eliteserien':'soccer_norway_eliteserien',
+    'Sweden — Allsvenskan':'soccer_sweden_allsvenskan',
+    'Sweden — Superettan':'soccer_sweden_superettan',
+    'Finland — Veikkausliiga':'soccer_finland_veikkausliiga',
+    'Ireland — Premier Division':'soccer_league_of_ireland',
+    'Poland — Ekstraklasa':'soccer_poland_ekstraklasa',
+    'Russia — Premier League':'soccer_russia_premier_league',
+    # Americas / Asia / Oceania — top divisions currently covered by The Odds API
+    'Argentina — Primera División':'soccer_argentina_primera_division',
+    'Brazil — Série A':'soccer_brazil_campeonato',
+    'Brazil — Série B':'soccer_brazil_serie_b',
+    'Chile — Primera División':'soccer_chile_campeonato',
+    'China — Super League':'soccer_china_superleague',
+    'Mexico — Liga MX':'soccer_mexico_ligamx',
+    'USA — MLS':'soccer_usa_mls',
+    'Saudi Arabia — Pro League':'soccer_saudi_arabia_pro_league',
+    'Japan — J League':'soccer_japan_j_league',
+    'South Korea — K League 1':'soccer_korea_kleague1',
+    'Australia — A-League':'soccer_australia_aleague',
+    # Continental competitions
+    'UEFA — Champions League':'soccer_uefa_champs_league',
+    'UEFA — Europa League':'soccer_uefa_europa_league',
+    'UEFA — Conference League':'soccer_uefa_europa_conference_league',
+    'CONMEBOL — Copa Libertadores':'soccer_conmebol_copa_libertadores',
+    'CONMEBOL — Copa Sudamericana':'soccer_conmebol_copa_sudamericana',
+}
 MARKETS=['h2h','totals','spreads']
 
 def api_key():
@@ -336,15 +383,18 @@ _require_api_key()
 import streamlit as st, pandas as pd, numpy as np
 from datetime import datetime, timezone, timedelta
 
-st.set_page_config(page_title='BetValue 5.5',page_icon='🎯',layout='wide')
-st.title('🎯 BetValue 5.5')
+st.set_page_config(page_title='BetValue 5.5.3 — World Leagues',page_icon='🎯',layout='wide')
+st.title('🎯 BetValue 5.5.3 — World Leagues')
 st.caption('Wersja PRO: skaner value + settlement + CLV + analiza jakości Value Score')
 st.caption('Market → consensus → model → fair odds → EV → CLV → settlement → performance')
 init_db()
 
 with st.sidebar:
     st.header('⚙️ Scanner')
-    league=st.selectbox('Liga',list(SPORTS))
+    countries=sorted({x.split(' — ')[0] for x in SPORTS})
+    country=st.selectbox('Kraj / region', ['Wszystkie']+countries)
+    available=[x for x in SPORTS if country=='Wszystkie' or x.startswith(country+' — ')]
+    league=st.selectbox('Liga (Tier 1 + maks. Tier 2)', available)
     min_ev=st.slider('Minimalne EV %',0,30,5)
     min_score=st.slider('Minimalny Value Score',0,100,65)
     max_events=st.slider('Liczba wydarzeń',5,100,30)
@@ -368,10 +418,32 @@ except Exception as e:
     st.error(str(e)); st.stop()
 
 try:
-    code={'Premier League':'E0','Ekstraklasa':'POL','La Liga':'SP1','Bundesliga':'D1','Serie A':'I1','Ligue 1':'F1','Eredivisie':'N1'}.get(league,'E0')
-    hist=clean(football_data('2526',code))
+    HISTORY_CODES={
+        'England — Premier League':'E0','England — Championship':'E1',
+        'France — Ligue 1':'F1','France — Ligue 2':'F2',
+        'Germany — Bundesliga':'D1','Germany — 2. Bundesliga':'D2',
+        'Italy — Serie A':'I1','Italy — Serie B':'I2',
+        'Spain — La Liga':'SP1','Spain — La Liga 2':'SP2',
+        'Netherlands — Eredivisie':'N1',
+        'Belgium — First Division':'B1','Portugal — Primeira Liga':'P1',
+        'Scotland — Premiership':'SC0','Turkey — Super League':'T1',
+        'Greece — Super League':'G1','Poland — Ekstraklasa':'POL',
+        'Austria — Bundesliga':'AUT1','Switzerland — Super League':'SWZ1',
+        'Denmark — Superliga':'DEN1','Norway — Eliteserien':'NOR1',
+        'Sweden — Allsvenskan':'SWE1','Sweden — Superettan':'SWE2',
+        'Finland — Veikkausliiga':'FIN1','Ireland — Premier Division':'IRL1',
+        'Argentina — Primera División':'ARG1','Brazil — Série A':'BRA1',
+        'Brazil — Série B':'BRA2','China — Super League':'CHN1',
+        'Japan — J League':'JPN1','Mexico — Liga MX':'MEX1',
+        'Russia — Premier League':'RUS1','USA — MLS':'USA1',
+    }
+    code=HISTORY_CODES.get(league)
+    hist=clean(football_data('2526',code)) if code else pd.DataFrame(columns=['Date','HomeTeam','AwayTeam','FTHG','FTAG'])
 except Exception:
     hist=pd.DataFrame(columns=['Date','HomeTeam','AwayTeam','FTHG','FTAG'])
+
+if len(hist) < 20:
+    st.info('ℹ️ Dla tej ligi The Odds API dostarcza kursy, ale wbudowany darmowy moduł Football-Data nie ma wystarczającej historii wyników. Skaner nie będzie udawał wyceny modelowej. Dla lig z historią Poisson + Dixon-Coles + ELO pozostają aktywne.')
 
 best=best_prices(rows); results=[]
 for event_id in sorted(set(r['event_id'] for r in best))[:max_events]:

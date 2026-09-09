@@ -1,23 +1,29 @@
-# BetValue 5.5.2 — Mobile Edition
+# BetValue 5.5.3 — World Leagues
 
-Wersja przygotowana dokładnie pod upload pojedynczych plików z telefonu.
+Wersja mobilna BetValue z rozszerzonym katalogiem lig.
 
-## Do GitHub wgraj tylko 3 pliki do głównego katalogu repozytorium
+## Co dodano
+- 42 obsługiwane przez The Odds API rozgrywki piłkarskie: ligi Tier 1 oraz dostępne Tier 2.
+- Filtr **Kraj / region**.
+- Wybór ligi w ramach wybranego kraju.
+- Drugi poziom jest dodany tam, gdzie The Odds API faktycznie udostępnia daną ligę (np. Championship, Ligue 2, 2. Bundesliga, Serie B, La Liga 2, Superettan, Brazil Série B).
+- Dla Polski obecnie The Odds API udostępnia Ekstraklasę; **1 Liga Polska nie znajduje się na aktualnej liście sportów The Odds API**, więc nie można jej pobierać z tego źródła bez dodatkowego dostawcy danych.
+
+## Model
+BetValue nie udaje wyceny, gdy brakuje historii wyników. Dla lig bez wystarczającej historii Football-Data aplikacja wyświetla informację zamiast generować fikcyjne prawdopodobieństwa.
+
+## Wdrożenie z telefonu
+Do repozytorium GitHub wgraj tylko:
 - `app.py`
 - `requirements.txt`
 - `README.md`
 
-Nie tworzysz folderu `betvalue/` ani `.streamlit/`.
+W Streamlit Cloud ustaw `app.py` jako Main file.
 
-## Streamlit Community Cloud
-1. Wgraj 3 pliki do ROOT repozytorium GitHub.
-2. W Streamlit wybierz repozytorium i `app.py`.
-3. **Settings → Secrets** i dodaj:
+W **Manage app → Settings → Secrets**:
 
 ```toml
-ODDS_API_KEY = "TWÓJ_KLUCZ_Z_THE_ODDS_API"
+ODDS_API_KEY = "TWÓJ_PRAWDZIWY_KLUCZ"
 ```
 
-4. Zapisz i zrestartuj aplikację.
-
-Klucza API nie publikuj w GitHub.
+Nie publikuj klucza API w GitHub.
